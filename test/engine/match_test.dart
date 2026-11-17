@@ -147,4 +147,12 @@ void main() {
     expect(s.status, MatchStatus.betweenGames);
     expect(s.rally.scores[Side.b], 0);
   });
+
+  test('StartGameEvent with same-side server/receiver is rejected', () {
+    final e = pts(Side.a, 21);
+    const bad = StartGameEvent(PlayerId.a1, PlayerId.a2);
+    expect(canAcceptEvent(cfg(), e, bad), isFalse);
+    expect(deriveMatch(cfg(), [...e, bad]).status, MatchStatus.betweenGames);
+    expect(canAcceptEvent(cfg(), e, next), isTrue);
+  });
 }

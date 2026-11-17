@@ -207,6 +207,7 @@ MatchState? _apply(MatchConfig c, MatchState s, MatchEvent e) {
       );
     case StartGameEvent():
       if (s.status != MatchStatus.betweenGames) return null;
+      if (e.server.side == e.receiver.side) return null;
       return MatchState._(
         status: MatchStatus.playing,
         gameNumber: s.gameNumber + 1,
