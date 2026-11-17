@@ -7,3 +7,4 @@
 - 2026-11-17: Review cleanup: removed unused Court.other and defaultNextServe's config param, replaced boilerplate README. Next: persistence/TTS/timers (Ruleset.betweenGamesSec still unused until countdown).
 - 2026-11-17: Added Custom points scoring (target 2-99, optional win-by-2, best of 3) alongside the two standard rulesets; court role labels for bottom-row players now sit above the chip so they no longer overlap. Not verified on device.
 - 2026-11-17: Ran flutter-iphone (debug/JIT build installed as dev.xtool.badminton-score). Release/AOT not possible on Linux: iOS gen_snapshot is a Mach-O binary. Needs a Mac or macOS CI runner.
+- 2026-11-17: Release build via GitHub Actions (.github/workflows/ios.yml, macOS runner, free on public repo) -> ./refresh-ios.sh downloads IPA and xtool-signs/installs it. Free Apple ID cert expires in 7 days: rerun script. Installed as edu.csc4330.badmintonScore (separate from the old debug dev.xtool app; delete that one).
