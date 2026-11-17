@@ -236,6 +236,5 @@ bool canAcceptEvent(MatchConfig c, List<MatchEvent> events, MatchEvent e) =>
     _apply(c, deriveMatch(c, events), e) != null;
 
 /// Previous game's winner serves, using the player who served the last rally.
-({PlayerId server, PlayerId receiver}) defaultNextServe(
-        MatchConfig c, MatchState s) =>
+({PlayerId server, PlayerId receiver}) defaultNextServe(MatchState s) =>
     (server: s.rally.server, receiver: s.rally.receiver);

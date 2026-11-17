@@ -30,4 +30,13 @@ void main() {
       expect(wouldWinGame(14, 13, bwf15), isTrue);
     });
   });
+
+  test('customRuleset', () {
+    final r = customRuleset(11, winBy2: false);
+    expect(isGameWon(11, 10, r), isTrue);
+    final w = customRuleset(5, winBy2: true);
+    expect(isGameWon(5, 4, w), isFalse);
+    expect(isGameWon(6, 4, w), isTrue);
+    expect(isGameWon(14, 13, w), isTrue); // cap = 5 + 9
+  });
 }

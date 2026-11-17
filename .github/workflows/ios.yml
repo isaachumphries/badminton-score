@@ -1,0 +1,21 @@
+name: iOS release
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter build ios --release --no-codesign
+      - run: |
+          mkdir Payload && cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry badminton.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: badminton-ipa
+          path: badminton.ipa

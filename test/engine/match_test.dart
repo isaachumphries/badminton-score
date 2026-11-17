@@ -134,7 +134,7 @@ void main() {
 
   test('defaultNextServe after A wins game 1', () {
     final s = deriveMatch(cfg(), pts(Side.a, 21));
-    final n = defaultNextServe(cfg(), s);
+    final n = defaultNextServe(s);
     expect(n.server.side, Side.a);
     expect(n.receiver.side, Side.b);
     expect(n.server, s.rally.server);

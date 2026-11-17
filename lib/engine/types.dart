@@ -21,12 +21,7 @@ enum PlayerId {
       };
 }
 
-enum Court {
-  right,
-  left;
-
-  Court get other => this == Court.right ? Court.left : Court.right;
-}
+enum Court { right, left }
 
 enum Format { singles, doubles }
 

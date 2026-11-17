@@ -65,6 +65,7 @@ class CourtView extends StatelessWidget {
           name: playerName(config, p),
           color: teamColor(p.side),
           role: role,
+          labelAbove: bottom,
         ),
       ),
     );
@@ -94,10 +95,15 @@ class _EndLabel extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.name, required this.color, this.role});
+  const _Chip(
+      {required this.name,
+      required this.color,
+      this.role,
+      this.labelAbove = false});
   final String name;
   final Color color;
   final String? role;
+  final bool labelAbove; // bottom-row players: label goes above to stay on court
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +134,7 @@ class _Chip extends StatelessWidget {
           ),
           if (role != null)
             Positioned(
-              top: 43,
+              top: labelAbove ? -16 : 43,
               left: -20,
               right: -20,
               child: Text(

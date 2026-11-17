@@ -4,3 +4,6 @@
   Next: Tasks 5-8 (TTS/haptics/storage, setup screen where USER picks ruleset, scoring screen, device run) — plan tasks 5-8 still describe the web stack, port them first. Gotcha: UI must let game winner pick next server and prevent same-side picks.
 - 2026-11-17: Built UI on feat/ui: setup (user picks ruleset), scoreboard with top-down court showing who stands where, cues, undo, next-game/finished cards. 27 tests pass. No persistence/TTS/timers yet (kept plugin-free for xtool builds).
   Next: persistence, voice calls, interval countdown. Gotcha: push over HTTPS via gh credential helper (SSH key rejected); run on phone with `flutter-iphone` (trust profile on device first).
+- 2026-11-17: Review cleanup: removed unused Court.other and defaultNextServe's config param, replaced boilerplate README. Next: persistence/TTS/timers (Ruleset.betweenGamesSec still unused until countdown).
+- 2026-11-17: Added Custom points scoring (target 2-99, optional win-by-2, best of 3) alongside the two standard rulesets; court role labels for bottom-row players now sit above the chip so they no longer overlap. Not verified on device.
+- 2026-11-17: Ran flutter-iphone (debug/JIT build installed as dev.xtool.badminton-score). Release/AOT not possible on Linux: iOS gen_snapshot is a Mach-O binary. Needs a Mac or macOS CI runner.

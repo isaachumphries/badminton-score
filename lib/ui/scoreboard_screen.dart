@@ -333,7 +333,7 @@ class _NextGameCardState extends State<_NextGameCard> {
   @override
   void initState() {
     super.initState();
-    final d = defaultNextServe(widget.config, widget.state);
+    final d = defaultNextServe(widget.state);
     server = d.server;
     receiver = d.receiver;
   }

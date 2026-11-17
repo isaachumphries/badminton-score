@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../engine/match.dart';
 import '../engine/rulesets.dart';
@@ -15,7 +16,10 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   Format format = Format.doubles;
-  Ruleset? ruleset; // the user decides; nothing preselected
+  Ruleset? standard; // the user decides; nothing preselected
+  bool custom = false;
+  bool winBy2 = true;
+  final _points = TextEditingController(text: '11');
   PlayerId server = PlayerId.a1;
   PlayerId receiver = PlayerId.b1;
   Side leftEnd = Side.a;
@@ -32,10 +36,17 @@ class _SetupScreenState extends State<SetupScreen> {
 
   @override
   void dispose() {
+    _points.dispose();
     for (final c in _fields.values) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Ruleset? get ruleset {
+    if (!custom) return standard;
+    final n = int.tryParse(_points.text.trim());
+    return n == null || n < 2 || n > 99 ? null : customRuleset(n, winBy2: winBy2);
   }
 
   String _name(PlayerId p) {
@@ -111,8 +122,19 @@ class _SetupScreenState extends State<SetupScreen> {
                   for (final r in allRulesets) _RulesetTile(
                     key: Key('ruleset-${r.id}'),
                     ruleset: r,
-                    selected: ruleset?.id == r.id,
-                    onTap: () => setState(() => ruleset = r),
+                    selected: !custom && standard?.id == r.id,
+                    onTap: () => setState(() {
+                      custom = false;
+                      standard = r;
+                    }),
+                  ),
+                  _CustomTile(
+                    selected: custom,
+                    points: _points,
+                    winBy2: winBy2,
+                    onSelect: () => setState(() => custom = true),
+                    onChanged: () => setState(() {}),
+                    onWinBy2: (v) => setState(() => winBy2 = v),
                   ),
                   _section('Players'),
                   for (final side in Side.values) ...[
@@ -205,6 +227,72 @@ class _SetupScreenState extends State<SetupScreen> {
                 letterSpacing: 1.2,
                 fontWeight: FontWeight.w700,
                 color: muted)),
+      );
+}
+
+class _CustomTile extends StatelessWidget {
+  const _CustomTile({
+    required this.selected,
+    required this.points,
+    required this.winBy2,
+    required this.onSelect,
+    required this.onChanged,
+    required this.onWinBy2,
+  });
+  final bool selected, winBy2;
+  final TextEditingController points;
+  final VoidCallback onSelect, onChanged;
+  final ValueChanged<bool> onWinBy2;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: InkWell(
+          key: const Key('ruleset-custom'),
+          onTap: onSelect,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: selected ? teamAColor : courtLine,
+                  width: selected ? 2 : 1),
+              color: selected ? teamAColor.withValues(alpha: 0.07) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Custom points',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                const Text('Best of 3 to any target, e.g. 5, 11, 50',
+                    style: TextStyle(color: muted, fontSize: 12)),
+                if (selected) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: const Key('custom-points'),
+                    controller: points,
+                    onChanged: (_) => onChanged(),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Points to win (2–99)',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Win by 2'),
+                    value: winBy2,
+                    onChanged: onWinBy2,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       );
 }
 

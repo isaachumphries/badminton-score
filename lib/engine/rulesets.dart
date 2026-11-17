@@ -25,3 +25,16 @@ const Ruleset bwf15 = Ruleset(
 );
 
 const List<Ruleset> allRulesets = [bwf21, bwf15];
+
+/// Best of 3 to [points]; changes ends/interval at the halfway point.
+Ruleset customRuleset(int points, {required bool winBy2}) => Ruleset(
+      id: 'custom',
+      label: 'Custom: $points points${winBy2 ? ' (win by 2)' : ''}',
+      pointsToWin: points,
+      cap: winBy2 ? points + 9 : points,
+      changeEndsAt: (points + 1) ~/ 2,
+      intervalAt: (points + 1) ~/ 2,
+      intervalSec: 60,
+      betweenGamesSec: 120,
+      gamesToWin: 2,
+    );
