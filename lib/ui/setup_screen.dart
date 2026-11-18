@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import '../engine/match.dart';
 import '../engine/rulesets.dart';
 import '../engine/types.dart';
+import 'labels.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key, required this.onStart});
@@ -54,6 +56,21 @@ class _SetupScreenState extends State<SetupScreen> {
     return t.isEmpty ? _defaults[p]! : t;
   }
 
+  /// Initials for [p] as they will appear on the court.
+  String _initials(PlayerId p) {
+    if (format == Format.singles) return teammateInitials(_name(p), '').$1;
+    final lead = p.side == Side.a ? PlayerId.a1 : PlayerId.b1;
+    final (one, two) = teammateInitials(_name(lead), _name(lead.partner));
+    return p == lead ? one : two;
+  }
+
+  String _team(Side side) =>
+      _players.where((p) => p.side == side).map(_name).join(' & ');
+
+  void _setPoints(int n) => setState(() {
+        _points.text = '${n.clamp(2, 99)}';
+      });
+
   List<PlayerId> get _players => format == Format.singles
       ? [PlayerId.a1, PlayerId.b1]
       : PlayerId.values;
@@ -88,129 +105,112 @@ class _SetupScreenState extends State<SetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final r = ruleset;
     return Scaffold(
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                 children: [
-                  const Text('Badminton',
-                      style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5)),
-                  const SizedBox(height: 2),
-                  const Text('New match', style: TextStyle(color: muted)),
-                  _section('Format'),
-                  SegmentedButton<Format>(
+                  Text('Badminton', style: sans(30, weight: FontWeight.w500, lineHeight: 36)),
+                  const SizedBox(height: 4),
+                  Text('New match', style: sans(15, color: secondary, lineHeight: 20)),
+                  const SectionLabel('Format'),
+                  Segmented<Format>(
                     key: const Key('format'),
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                          value: Format.singles,
-                          label: Text('Singles', key: Key('format-singles'))),
-                      ButtonSegment(
-                          value: Format.doubles,
-                          label: Text('Doubles', key: Key('format-doubles'))),
-                    ],
-                    selected: {format},
-                    onSelectionChanged: (s) => _setFormat(s.first),
+                    options: const [(Format.singles, 'Singles'), (Format.doubles, 'Doubles')],
+                    selected: format,
+                    onChanged: _setFormat,
                   ),
-                  _section('Scoring'),
-                  for (final r in allRulesets) _RulesetTile(
-                    key: Key('ruleset-${r.id}'),
-                    ruleset: r,
-                    selected: !custom && standard?.id == r.id,
-                    onTap: () => setState(() {
-                      custom = false;
-                      standard = r;
-                    }),
+                  const SectionLabel('Scoring'),
+                  Container(
+                    clipBehavior: Clip.antiAlias,
+                    decoration: cardDecoration(),
+                    child: Column(children: [
+                      for (final rs in allRulesets) ...[
+                        _OptionRow(
+                          key: Key('ruleset-${rs.id}'),
+                          title: '${rs.pointsToWin} points',
+                          meta: 'cap ${rs.cap}',
+                          subtitle: 'Best of ${rs.gamesToWin * 2 - 1} · '
+                              'change ends at ${rs.changeEndsAt} in game 3',
+                          selected: !custom && standard?.id == rs.id,
+                          onTap: () => setState(() {
+                            custom = false;
+                            standard = rs;
+                          }),
+                        ),
+                        const Divider(height: 1, thickness: 1, color: hairline),
+                      ],
+                      _OptionRow(
+                        key: const Key('ruleset-custom'),
+                        title: 'Custom',
+                        subtitle: 'Best of 3 to any target',
+                        selected: custom,
+                        onTap: () => setState(() => custom = true),
+                      ),
+                      if (custom) _customSettings(),
+                    ]),
                   ),
-                  _CustomTile(
-                    selected: custom,
-                    points: _points,
-                    winBy2: winBy2,
-                    onSelect: () => setState(() => custom = true),
-                    onChanged: () => setState(() {}),
-                    onWinBy2: (v) => setState(() => winBy2 = v),
-                  ),
-                  _section('Players'),
-                  for (final side in Side.values) ...[
-                    Row(
-                      children: [
-                        for (final p in _players.where((p) => p.side == side))
-                          Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                  right: format == Format.doubles ? 8 : 0,
-                                  bottom: 8),
-                              child: TextField(
-                                controller: _fields[p],
-                                onChanged: (_) => setState(() {}),
-                                textCapitalization: TextCapitalization.words,
-                                decoration: InputDecoration(
-                                  hintText: _defaults[p],
-                                  prefixIcon: Icon(Icons.circle,
-                                      size: 12, color: teamColor(side)),
-                                  border: const OutlineInputBorder(),
-                                  isDense: true,
+                  const SectionLabel('Players'),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final side in Side.values) ...[
+                        if (side == Side.b) const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(children: [
+                            for (final p in _players.where((p) => p.side == side))
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _PlayerField(
+                                  controller: _fields[p]!,
+                                  hint: _defaults[p]!,
+                                  initials: _initials(p),
+                                  color: teamColor(side),
+                                  onChanged: () => setState(() {}),
                                 ),
                               ),
-                            ),
-                          ),
+                          ]),
+                        ),
                       ],
-                    ),
-                  ],
-                  _section('First serve'),
-                  Wrap(spacing: 8, children: [
+                    ],
+                  ),
+                  const SectionLabel('First serve'),
+                  _grid([
                     for (final p in _players)
-                      ChoiceChip(
-                        label: Text(_name(p)),
-                        selected: server == p,
-                        onSelected: (_) => _setServer(p),
-                      ),
+                      _choice(p, server == p, () => _setServer(p)),
                   ]),
                   if (format == Format.doubles) ...[
-                    _section('First receive'),
-                    Wrap(spacing: 8, children: [
+                    const SectionLabel('First receive'),
+                    _grid([
                       for (final p in _players.where((p) => p.side != server.side))
-                        ChoiceChip(
-                          label: Text(_name(p)),
-                          selected: receiver == p,
-                          onSelected: (_) => setState(() => receiver = p),
-                        ),
+                        _choice(p, receiver == p, () => setState(() => receiver = p)),
                     ]),
                   ],
-                  _section('Left end of the court'),
-                  SegmentedButton<Side>(
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(
-                          value: Side.a, label: Text(_name(PlayerId.a1))),
-                      ButtonSegment(
-                          value: Side.b, label: Text(_name(PlayerId.b1))),
-                    ],
-                    selected: {leftEnd},
-                    onSelectionChanged: (s) => setState(() => leftEnd = s.first),
+                  const SectionLabel('Left end of the court'),
+                  Segmented<Side>(
+                    options: [(Side.a, _team(Side.a)), (Side.b, _team(Side.b))],
+                    selected: leftEnd,
+                    onChanged: (s) => setState(() => leftEnd = s),
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton(
-                  key: const Key('start'),
-                  onPressed: ruleset == null ? null : _start,
-                  child: Text(
-                      ruleset == null ? 'Choose a scoring system' : 'Start match',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
-                ),
+            Container(
+              decoration: const BoxDecoration(
+                color: paper,
+                border: Border(top: BorderSide(color: hairline)),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                  20, 12, 20, 12 + MediaQuery.paddingOf(context).bottom),
+              child: PrimaryButton(
+                buttonKey: const Key('start'),
+                label: r == null ? 'Choose a scoring system' : 'Start match',
+                onPressed: r == null ? null : _start,
               ),
             ),
           ],
@@ -219,129 +219,195 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
-  Widget _section(String label) => Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 10),
-        child: Text(label.toUpperCase(),
-            style: const TextStyle(
-                fontSize: 11,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w700,
-                color: muted)),
+  Widget _choice(PlayerId p, bool selected, VoidCallback onTap) => ChoiceTile(
+        initials: _initials(p),
+        color: teamColor(p.side),
+        name: _name(p),
+        selected: selected,
+        onTap: onTap,
       );
-}
 
-class _CustomTile extends StatelessWidget {
-  const _CustomTile({
-    required this.selected,
-    required this.points,
-    required this.winBy2,
-    required this.onSelect,
-    required this.onChanged,
-    required this.onWinBy2,
-  });
-  final bool selected, winBy2;
-  final TextEditingController points;
-  final VoidCallback onSelect, onChanged;
-  final ValueChanged<bool> onWinBy2;
+  /// Two tiles per row.
+  Widget _grid(List<Widget> tiles) => Column(children: [
+        for (var i = 0; i < tiles.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(bottom: i + 2 < tiles.length ? 8 : 0),
+            child: Row(children: [
+              Expanded(child: tiles[i]),
+              const SizedBox(width: 12),
+              Expanded(child: i + 1 < tiles.length ? tiles[i + 1] : const SizedBox()),
+            ]),
+          ),
+      ]);
 
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: InkWell(
-          key: const Key('ruleset-custom'),
-          onTap: onSelect,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: selected ? teamAColor : courtLine,
-                  width: selected ? 2 : 1),
-              color: selected ? teamAColor.withValues(alpha: 0.07) : null,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Custom points',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                const Text('Best of 3 to any target, e.g. 5, 11, 50',
-                    style: TextStyle(color: muted, fontSize: 12)),
-                if (selected) ...[
-                  const SizedBox(height: 10),
-                  TextField(
+  Widget _customSettings() {
+    final n = int.tryParse(_points.text.trim());
+    Widget stepButton(IconData icon, int? to) => SizedBox(
+          width: 36,
+          height: 32,
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            iconSize: 16,
+            color: secondary,
+            onPressed: to == null ? null : () => _setPoints(to),
+            icon: Icon(icon),
+          ),
+        );
+    return Container(
+      color: raised.withValues(alpha: 0.45),
+      child: Column(children: [
+        const Divider(height: 1, thickness: 1, color: hairline),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(children: [
+            Expanded(child: Text('Points to win', style: sans(15, lineHeight: 20))),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: hairline),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                stepButton(Icons.remove_rounded, n == null ? 11 : (n > 2 ? n - 1 : null)),
+                SizedBox(
+                  width: 36,
+                  child: TextField(
                     key: const Key('custom-points'),
-                    controller: points,
-                    onChanged: (_) => onChanged(),
+                    controller: _points,
+                    onChanged: (_) => setState(() {}),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                      labelText: 'Points to win (2–99)',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
+                    textAlign: TextAlign.center,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(2),
+                    ],
+                    style: mono(15, weight: FontWeight.w500, color: ink),
+                    decoration: const InputDecoration.collapsed(hintText: ''),
                   ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Win by 2'),
-                    value: winBy2,
-                    onChanged: onWinBy2,
-                  ),
-                ],
-              ],
+                ),
+                stepButton(Icons.add_rounded, n == null ? 11 : (n < 99 ? n + 1 : null)),
+              ]),
+            ),
+          ]),
+        ),
+        const Divider(height: 1, thickness: 1, color: hairline),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
+          child: Row(children: [
+            Expanded(child: Text('Win by 2', style: sans(15, lineHeight: 20))),
+            SmallSwitch(value: winBy2, onChanged: (v) => setState(() => winBy2 = v)),
+          ]),
+        ),
+        if (n == null || n < 2)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Pick a target from 2 to 99',
+                  style: sans(13, color: teamBText)),
             ),
           ),
-        ),
-      );
+      ]),
+    );
+  }
 }
 
-class _RulesetTile extends StatelessWidget {
-  const _RulesetTile(
-      {super.key,
-      required this.ruleset,
-      required this.selected,
-      required this.onTap});
-  final Ruleset ruleset;
+class _OptionRow extends StatelessWidget {
+  const _OptionRow({
+    super.key,
+    required this.title,
+    this.meta,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+  final String title, subtitle;
+  final String? meta;
   final bool selected;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: selected ? teamAColor : courtLine,
-                  width: selected ? 2 : 1),
-              color: selected ? teamAColor.withValues(alpha: 0.07) : null,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(ruleset.label,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 16)),
-                      Text(
-                          'Best of ${ruleset.gamesToWin * 2 - 1} · '
-                          'change ends at ${ruleset.changeEndsAt} in game 3',
-                          style: const TextStyle(color: muted, fontSize: 12)),
+                      Text(title, style: sans(15, weight: FontWeight.w500, lineHeight: 20)),
+                      if (meta != null) ...[
+                        const SizedBox(width: 8),
+                        Text(meta!, style: mono(12)),
+                      ],
                     ],
                   ),
-                ),
-                if (selected)
-                  const Icon(Icons.check_circle, color: teamAColor),
-              ],
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: sans(13, color: secondary, lineHeight: 18)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? ink : Colors.transparent,
+                border: selected ? null : Border.all(color: muted.withValues(alpha: 0.5), width: 1.5),
+              ),
+              child: selected
+                  ? Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))
+                  : null,
+            ),
+          ]),
+        ),
+      );
+}
+
+class _PlayerField extends StatelessWidget {
+  const _PlayerField({
+    required this.controller,
+    required this.hint,
+    required this.initials,
+    required this.color,
+    required this.onChanged,
+  });
+  final TextEditingController controller;
+  final String hint, initials;
+  final Color color;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 44,
+        padding: const EdgeInsets.only(left: 10, right: 12),
+        decoration: cardDecoration(radius: 10),
+        child: Row(children: [
+          PlayerMarker(initials: initials, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: (_) => onChanged(),
+              textCapitalization: TextCapitalization.words,
+              style: sans(15),
+              decoration: InputDecoration.collapsed(
+                hintText: hint,
+                hintStyle: sans(15, color: muted),
+              ),
             ),
           ),
-        ),
+        ]),
       );
 }

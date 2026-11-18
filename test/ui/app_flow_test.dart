@@ -24,8 +24,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('court')), findsOneWidget);
-    expect(find.text('serves'), findsOneWidget);
-    expect(find.text('receives'), findsOneWidget);
+    expect(find.byKey(const Key('serve-marker')), findsOneWidget);
+    // Default names share a letter, so markers use the second word.
+    expect(find.descendant(of: find.byKey(const Key('marker-a1')), matching: find.text('P1')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('marker-b2')), matching: find.text('P4')), findsOneWidget);
     expect(find.text('0'), findsNWidgets(2));
 
     await tester.tap(find.byKey(const Key('panel-a')));
