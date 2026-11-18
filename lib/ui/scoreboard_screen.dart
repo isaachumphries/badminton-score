@@ -7,6 +7,7 @@ import '../engine/types.dart';
 import 'court_view.dart';
 import 'labels.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 class ScoreboardScreen extends StatelessWidget {
   const ScoreboardScreen(
@@ -47,95 +48,107 @@ class ScoreboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) {
-            final s = controller.state;
-            final playing = s.status == MatchStatus.playing;
-            return Column(
-              children: [
-                _Header(
-                  title: 'Game ${s.gameNumber} · ${config.ruleset.label}',
-                  onMenu: () => _confirmNew(context),
+      body: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final s = controller.state;
+          final playing = s.status == MatchStatus.playing;
+          return Stack(
+            children: [
+              SafeArea(
+                child: Column(
+                  children: [
+                    _Header(
+                      game: s.gameNumber,
+                      meta: rulesetMeta(config.ruleset),
+                      onClose: () => _confirmNew(context),
+                    ),
+                    Expanded(child: _panel(Side.a, s)),
+                    _CourtSection(config: config, state: s),
+                    Expanded(child: _panel(Side.b, s)),
+                    _Footer(canUndo: controller.canUndo, onUndo: controller.undo),
+                  ],
                 ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Column(
-                        children: [
-                          Expanded(child: _panel(Side.a, s)),
-                          _CourtSection(config: config, state: s),
-                          Expanded(child: _panel(Side.b, s)),
-                        ],
+              ),
+              if (!playing)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: ink.withValues(alpha: 0.42),
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: _Sheet(
+                        child: s.status == MatchStatus.finished
+                            ? _FinishedSheet(
+                                config: config, state: s, onNewMatch: onNewMatch)
+                            : _NextGameSheet(
+                                key: ValueKey(s.gameNumber),
+                                config: config,
+                                state: s,
+                                onStart: (srv, rcv) =>
+                                    controller.push(StartGameEvent(srv, rcv)),
+                                onUndo: controller.undo,
+                              ),
                       ),
-                      if (!playing)
-                        Positioned.fill(
-                          child: ColoredBox(
-                            color: paper.withValues(alpha: 0.92),
-                            child: Center(
-                              child: s.status == MatchStatus.finished
-                                  ? _FinishedCard(
-                                      config: config,
-                                      state: s,
-                                      onNewMatch: onNewMatch)
-                                  : _NextGameCard(
-                                      key: ValueKey(s.gameNumber),
-                                      config: config,
-                                      state: s,
-                                      onStart: (srv, rcv) => controller
-                                          .push(StartGameEvent(srv, rcv)),
-                                    ),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
                 ),
-                _Footer(
-                  canUndo: controller.canUndo,
-                  onUndo: controller.undo,
-                ),
-              ],
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _panel(Side side, MatchState s) => _Panel(
-        key: Key('panel-${side.name}'),
-        side: side,
-        name: teamName(config, side),
-        score: s.rally.scores[side]!,
-        gamesWon: s.gamesWon[side]!,
-        gamesToWin: config.ruleset.gamesToWin,
-        serving: s.status == MatchStatus.playing && s.rally.server.side == side,
-        onTap: () => _point(side),
-      );
+  Widget _panel(Side side, MatchState s) {
+    final serving = s.status == MatchStatus.playing && s.rally.server.side == side;
+    return _Panel(
+      key: Key('panel-${side.name}'),
+      side: side,
+      name: teamName(config, side),
+      score: s.rally.scores[side]!,
+      gamesWon: s.gamesWon[side]!,
+      gamesToWin: config.ruleset.gamesToWin,
+      servingFrom: serving ? s.rally.positions[s.rally.server]!.name : null,
+      onTap: () => _point(side),
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.title, required this.onMenu});
-  final String title;
-  final VoidCallback onMenu;
+  const _Header({required this.game, required this.meta, required this.onClose});
+  final int game;
+  final String meta;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 4, 0),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
         child: Row(
           children: [
             Expanded(
-              child: Text(title,
-                  style: const TextStyle(
-                      color: muted, fontSize: 13, fontWeight: FontWeight.w600)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Game $game', style: sans(17, weight: FontWeight.w500, lineHeight: 22)),
+                  const SizedBox(height: 2),
+                  Text(meta, style: mono(12)),
+                ],
+              ),
             ),
-            IconButton(
-              key: const Key('menu'),
-              onPressed: onMenu,
-              icon: const Icon(Icons.close, color: muted),
-              tooltip: 'New match',
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                key: const Key('menu'),
+                onPressed: onClose,
+                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  backgroundColor: raised,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.close_rounded, size: 18, color: secondary),
+                tooltip: 'New match',
+              ),
             ),
           ],
         ),
@@ -150,93 +163,88 @@ class _Panel extends StatelessWidget {
     required this.score,
     required this.gamesWon,
     required this.gamesToWin,
-    required this.serving,
+    required this.servingFrom,
     required this.onTap,
   });
 
   final Side side;
   final String name;
   final int score, gamesWon, gamesToWin;
-  final bool serving;
+  final String? servingFrom; // court the server stands in, when serving
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = teamColor(side);
+    final serving = servingFrom != null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Material(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(20),
+        color: card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: serving ? color.withValues(alpha: 0.55) : hairline,
+            width: serving ? 1.5 : 1,
+          ),
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: onTap,
-          child: Stack(
-            children: [
-              Positioned(
-                left: 18,
-                top: 14,
-                right: 100,
-                child: Text(name,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: color, fontSize: 18, fontWeight: FontWeight.w700)),
-              ),
-              Positioned(
-                right: 18,
-                top: 18,
-                child: Row(children: [
+          splashColor: color.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(children: [
+                  Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(name,
+                        overflow: TextOverflow.ellipsis,
+                        style: sans(15, weight: FontWeight.w500, lineHeight: 20)),
+                  ),
                   for (var i = 0; i < gamesToWin; i++)
                     Container(
                       margin: const EdgeInsets.only(left: 6),
-                      width: 10,
-                      height: 10,
+                      width: 8,
+                      height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: i < gamesWon ? color : Colors.transparent,
-                        border: Border.all(color: color, width: 1.5),
+                        color: i < gamesWon ? color : null,
+                        border: i < gamesWon
+                            ? null
+                            : Border.all(color: muted.withValues(alpha: 0.5), width: 1.5),
                       ),
                     ),
                 ]),
-              ),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: FittedBox(
-                    child: Text(
-                      '$score',
-                      key: Key('score-${side.name}'),
-                      style: TextStyle(
-                        color: ink,
-                        fontSize: 120,
-                        height: 1,
-                        fontWeight: FontWeight.w300,
-                        fontFeatures: tabular,
-                      ),
+                Expanded(
+                  child: Center(
+                    child: FittedBox(
+                      child: Text('$score',
+                          key: Key('score-${side.name}'), style: figures(120)),
                     ),
                   ),
                 ),
-              ),
-              if (serving)
-                Positioned(
-                  left: 18,
-                  bottom: 14,
-                  child: Row(children: [
-                    Container(
-                        width: 8,
-                        height: 8,
-                        decoration:
-                            BoxDecoration(shape: BoxShape.circle, color: color)),
-                    const SizedBox(width: 6),
-                    Text('SERVING',
-                        style: TextStyle(
-                            color: color,
-                            fontSize: 11,
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.w700)),
-                  ]),
+                SizedBox(
+                  height: 16,
+                  child: serving
+                      ? Row(children: [
+                          ShuttleIcon(size: 16, color: teamTextColor(side)),
+                          const SizedBox(width: 8),
+                          Text('Serving from the $servingFrom',
+                              style: sans(13,
+                                  weight: FontWeight.w500,
+                                  color: teamTextColor(side),
+                                  lineHeight: 16)),
+                        ])
+                      : null,
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -257,35 +265,42 @@ class _CourtSection extends StatelessWidget {
     ];
     final playing = state.status == MatchStatus.playing;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           CourtView(config: config, state: state),
           const SizedBox(height: 10),
-          if (playing) ...[
-            Text(scoreCall(state),
-                key: const Key('call'),
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-            Text(serveLine(config, state),
-                style: const TextStyle(color: muted, fontSize: 13)),
-          ],
           SizedBox(
-            height: 34,
+            height: 20,
+            child: playing
+                ? Text.rich(
+                    key: const Key('call'),
+                    TextSpan(children: [
+                      TextSpan(
+                          text: scoreCall(state),
+                          style: sans(13, weight: FontWeight.w500)),
+                      TextSpan(
+                          text: '  ·  ${serveLine(config, state)}',
+                          style: sans(13, color: secondary)),
+                    ]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  )
+                : null,
+          ),
+          SizedBox(
+            height: 32,
             child: Center(
               child: cues.isEmpty
                   ? null
                   : Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                       decoration: BoxDecoration(
-                          color: ink, borderRadius: BorderRadius.circular(20)),
+                          color: ink, borderRadius: BorderRadius.circular(8)),
                       child: Text(cues.join('  ·  '),
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)),
+                          style: sans(12, weight: FontWeight.w500, color: card)),
                     ),
             ),
           ),
@@ -306,27 +321,78 @@ class _Footer extends StatelessWidget {
         child: TextButton.icon(
           key: const Key('undo'),
           onPressed: canUndo ? onUndo : null,
-          icon: const Icon(Icons.undo),
+          style: TextButton.styleFrom(
+            foregroundColor: secondary,
+            disabledForegroundColor: muted.withValues(alpha: 0.4),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          icon: const Icon(Icons.undo_rounded, size: 18),
           label: const Text('Undo'),
         ),
       );
 }
 
-class _NextGameCard extends StatefulWidget {
-  const _NextGameCard(
+/// Bottom sheet frame shared by the between-games and match-won views.
+class _Sheet extends StatelessWidget {
+  const _Sheet({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: card,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+            20, 12, 20, 16 + MediaQuery.paddingOf(context).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: ink.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      );
+}
+
+String _takes(MatchConfig c) => c.format == Format.doubles ? 'take' : 'takes';
+
+Widget _finalScore(int winner, int loser) => Row(children: [
+      Text('$winner', style: figures(48)),
+      const SizedBox(width: 12),
+      Text('–', style: figures(48, color: muted)),
+      const SizedBox(width: 12),
+      Text('$loser', style: figures(48, color: muted)),
+    ]);
+
+class _NextGameSheet extends StatefulWidget {
+  const _NextGameSheet(
       {super.key,
       required this.config,
       required this.state,
-      required this.onStart});
+      required this.onStart,
+      required this.onUndo});
   final MatchConfig config;
   final MatchState state;
   final void Function(PlayerId server, PlayerId receiver) onStart;
+  final VoidCallback onUndo;
 
   @override
-  State<_NextGameCard> createState() => _NextGameCardState();
+  State<_NextGameSheet> createState() => _NextGameSheetState();
 }
 
-class _NextGameCardState extends State<_NextGameCard> {
+class _NextGameSheetState extends State<_NextGameSheet> {
   late PlayerId server;
   late PlayerId receiver;
 
@@ -340,9 +406,7 @@ class _NextGameCardState extends State<_NextGameCard> {
 
   List<PlayerId> _of(Side s) => widget.config.format == Format.singles
       ? [s == Side.a ? PlayerId.a1 : PlayerId.b1]
-      : (s == Side.a
-          ? [PlayerId.a1, PlayerId.a2]
-          : [PlayerId.b1, PlayerId.b2]);
+      : (s == Side.a ? [PlayerId.a1, PlayerId.a2] : [PlayerId.b1, PlayerId.b2]);
 
   @override
   Widget build(BuildContext context) {
@@ -350,79 +414,79 @@ class _NextGameCardState extends State<_NextGameCard> {
     final games = widget.state.finishedGames;
     final last = games.last;
     final winner = last[Side.a]! > last[Side.b]! ? Side.a : Side.b;
-    final doubles = c.format == Format.doubles;
-    return Card(
+    final n = games.length;
+    return Column(
       key: const Key('next-game'),
-      margin: const EdgeInsets.all(24),
-      elevation: 0,
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Game ${games.length}',
-                style: const TextStyle(color: muted, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(teamName(c, winner),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: teamColor(winner),
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800)),
-            Text('${last[Side.a]} – ${last[Side.b]}',
-                style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.w300,
-                    fontFeatures: tabular)),
-            const SizedBox(height: 4),
-            const Text('Change ends', style: TextStyle(color: muted)),
-            if (doubles) ...[
-              const SizedBox(height: 16),
-              _pick('Serves', _of(winner), server,
-                  (p) => setState(() => server = p)),
-              _pick('Receives', _of(winner.other), receiver,
-                  (p) => setState(() => receiver = p)),
-            ],
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: FilledButton(
-                key: const Key('start-game'),
-                onPressed: () => widget.onStart(server, receiver),
-                child: Text('Start game ${games.length + 1}'),
-              ),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Expanded(child: Text('Game $n · final', style: mono(12))),
+          GestureDetector(
+            onTap: widget.onUndo,
+            child: Text('Undo last point', style: sans(13, weight: FontWeight.w500, color: secondary)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Text('${teamName(c, winner)} ${_takes(c)} game $n',
+            style: sans(22, weight: FontWeight.w500, lineHeight: 28)),
+        const SizedBox(height: 8),
+        _finalScore(last[winner]!, last[winner.other]!),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: raised, borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            const Icon(Icons.swap_horiz_rounded, size: 18, color: secondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('Change ends before game ${n + 1}',
+                  style: sans(14, color: secondary, lineHeight: 20)),
             ),
-          ],
+          ]),
         ),
-      ),
+        if (c.format == Format.doubles) ...[
+          const SizedBox(height: 4),
+          _pick('Serves', _of(winner), server, (p) => setState(() => server = p)),
+          _pick('Receives', _of(winner.other), receiver,
+              (p) => setState(() => receiver = p)),
+        ],
+        const SizedBox(height: 24),
+        PrimaryButton(
+          buttonKey: const Key('start-game'),
+          label: 'Start game ${n + 1}',
+          onPressed: () => widget.onStart(server, receiver),
+        ),
+      ],
     );
   }
 
   Widget _pick(String label, List<PlayerId> options, PlayerId selected,
           void Function(PlayerId) onPick) =>
-      Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: muted, fontSize: 12)),
-            Wrap(spacing: 8, children: [
-              for (final p in options)
-                ChoiceChip(
-                  label: Text(playerName(widget.config, p)),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(label),
+          Row(children: [
+            for (final p in options) ...[
+              if (p != options.first) const SizedBox(width: 12),
+              Expanded(
+                child: ChoiceTile(
+                  initials: playerInitials(widget.config, p),
+                  color: teamColor(p.side),
+                  name: playerName(widget.config, p),
                   selected: selected == p,
-                  onSelected: (_) => onPick(p),
+                  onTap: () => onPick(p),
                 ),
-            ]),
-          ],
-        ),
+              ),
+            ],
+          ]),
+        ],
       );
 }
 
-class _FinishedCard extends StatelessWidget {
-  const _FinishedCard(
+class _FinishedSheet extends StatelessWidget {
+  const _FinishedSheet(
       {required this.config, required this.state, required this.onNewMatch});
   final MatchConfig config;
   final MatchState state;
@@ -431,42 +495,37 @@ class _FinishedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final w = state.winner!;
-    return Card(
+    return Column(
       key: const Key('finished'),
-      margin: const EdgeInsets.all(24),
-      elevation: 0,
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Match won',
-                style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(teamName(config, w),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: teamColor(w),
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            for (final g in state.finishedGames)
-              Text('${g[Side.a]} – ${g[Side.b]}',
-                  style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w300,
-                      fontFeatures: tabular)),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: FilledButton(
-                  onPressed: onNewMatch, child: const Text('New match')),
-            ),
-          ],
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Match · final', style: mono(12)),
+        const SizedBox(height: 4),
+        Text('${teamName(config, w)} ${_takes(config)} the match',
+            style: sans(22, weight: FontWeight.w500, lineHeight: 28)),
+        const SizedBox(height: 16),
+        Container(
+          decoration: cardDecoration(radius: 12),
+          child: Column(children: [
+            for (final (i, g) in state.finishedGames.indexed) ...[
+              if (i > 0) const Divider(height: 1, thickness: 1, color: hairline),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(children: [
+                  Expanded(child: Text('Game ${i + 1}', style: sans(15, color: secondary))),
+                  Text('${g[w]} – ${g[w.other]}',
+                      style: mono(15,
+                          weight: FontWeight.w500,
+                          color: g[w]! > g[w.other]! ? ink : muted)),
+                ]),
+              ),
+            ],
+          ]),
         ),
-      ),
+        const SizedBox(height: 24),
+        PrimaryButton(label: 'New match', onPressed: onNewMatch),
+      ],
     );
   }
 }
